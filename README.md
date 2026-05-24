@@ -88,10 +88,6 @@ kazoo db rm imported --yes
 # Bulk-load (CSV / Parquet / JSON auto-detected from extension)
 kazoo data load Person people.csv
 
-# Export query results — write your Cypher and pipe to a file
-kazoo query 'MATCH (p:Person) RETURN p.name AS name, p.age AS age;' -f csv > people.csv
-kazoo query 'MATCH (p:Person) WHERE p.age > 30 RETURN p.name AS name;' -f csv > over30.csv
-
 # Truncate a table
 kazoo data clear Person --yes
 
@@ -99,9 +95,6 @@ kazoo data clear Person --yes
 kazoo completions zsh  > "${fpath[1]}/_kazoo"
 kazoo completions bash > /usr/local/etc/bash_completion.d/kazoo
 kazoo completions fish > ~/.config/fish/completions/kazoo.fish
-
-# Stream rows for piping to jq
-kazoo --ndjson query "MATCH (p:Person) RETURN p" | jq .
 ```
 
 ## Database locations

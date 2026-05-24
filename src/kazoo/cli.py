@@ -367,29 +367,28 @@ def db_stats() -> None:
 
 @db_app.command("export")
 def db_export() -> None:
-    """Stream the active DB's bytes to stdout.
+    """Export the active DB as a gzipped schema+data snapshot to stdout.
 
-    Example: `kazoo --db mydb db export > mydb.graph`
+    Example: `kazoo --db mydb db export > last-backup.grz`
     """
     with _handle_errors():
-        src = db.export_to_stream(state.db_name, sys.stdout.buffer)
+        src = db.export_to_stream_gzipped(state.db_name, sys.stdout.buffer)
     print(f"exported {src}", file=sys.stderr)
 
 
 @db_app.command("import")
-def db_import(
-    force: Annotated[
-        bool, typer.Option("--force", "-f", help="Overwrite the target DB if it already exists.")
-    ] = False,
-) -> None:
-    """Import the active DB from bytes on stdin.
+def db_import() -> None:
+    """Replace the active DB with a snapshot read from stdin.
 
-    Example: `kazoo --db mydb db import < snapshot.graph`
+    Accepts either a raw `.graph` stream or a gzipped `.grz` stream; gzip is
+    auto-detected. Always replaces — the snapshot is the source of truth.
+
+    Example: `kazoo --db mydb db import < last-backup.grz`
     """
     if sys.stdin.isatty():
-        _bail("no input on stdin (pipe a .graph file: `kazoo --db NAME db import < file.graph`)", code=2)
+        _bail("no input on stdin (pipe a .grz file: `kazoo --db NAME db import < file.grz`)", code=2)
     with _handle_errors():
-        dest = db.import_from_stream(state.db_name, sys.stdin.buffer, force=force)
+        dest = db.import_from_stream(state.db_name, sys.stdin.buffer)
     print(f"imported to {dest}", file=sys.stderr)
 
 

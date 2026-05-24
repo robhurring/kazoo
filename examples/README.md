@@ -2,36 +2,30 @@
 
 Two ready-to-query graphs: an office org chart and a social network.
 
-## Three ways to use them
+## How to load them
 
-### 1. Query directly from the .graph.gz snapshot (no install)
-
-`--db <path>` accepts any file ending in `.graph`. Decompress on the fly:
+Each example ships a `.grz` snapshot (Kuzu database, schema + data, gzipped).
+`db import` reads it, replacing the named DB:
 
 ```bash
-gunzip -c examples/office/office.graph.gz > /tmp/office.graph
-kazoo --db /tmp/office.graph schema show
-kazoo --db /tmp/office.graph query 'MATCH (p:Person) RETURN p.name AS name ORDER BY name;'
+kazoo --db office db import < examples/office/office.grz
+kazoo --db social db import < examples/social/social.grz
 ```
 
-### 2. Import into your XDG dir
-
-Imports the snapshot as a managed DB so `kazoo --db office ...` just works:
+After that, `kazoo --db office ...` and `kazoo --db social ...` just work.
+Helper:
 
 ```bash
 ./examples/build.sh           # imports both
 ./examples/build.sh office    # just office
-```
-
-### 3. Rebuild from cypher sources (source of truth)
-
-```bash
-./examples/build.sh --rebuild           # drop, re-seed, re-snapshot
-./examples/build.sh --rebuild office
+./examples/build.sh --rebuild # re-seed from schema.cypher + seed.cypher
 ```
 
 Each DB lands at `$XDG_DATA_HOME/kazoo/<name>.graph`
 (default `~/.local/share/kazoo/<name>.graph`).
+
+The `.grz` file is regenerated whenever `schema.cypher` or `seed.cypher`
+changes (`./examples/build.sh --rebuild` does this end-to-end).
 
 ---
 

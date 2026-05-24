@@ -77,10 +77,9 @@ kazoo db list
 kazoo db path mygraph
 kazoo db stats
 
-# Export / import (Unix pipes — stdout/stdin)
-kazoo --db mydb db export > /backups/mydb.graph
-kazoo --db imported db import < /backups/mydb.graph
-kazoo --db imported db import --force < /backups/mydb.graph   # overwrite
+# Snapshot a whole DB (schema+data, gzipped) and restore it elsewhere
+kazoo --db mydb db export > last-backup.grz
+kazoo --db imported db import < last-backup.grz   # always replaces
 
 # Rename / delete
 kazoo db rename old new
@@ -114,8 +113,13 @@ Databases live under `$XDG_DATA_HOME/kazoo/` (defaults to `~/.local/share/kazoo/
 
 `--db` accepts either a bare name (resolved under the XDG dir) or a path to a
 `.graph` file (anything containing `/` or ending in `.graph` is taken as-is).
-So `kazoo --db ./examples/office/office.graph schema show` works without
-importing first.
+
+## File types
+
+| Extension | What it is |
+|-----------|------------|
+| `.graph`  | A live Kuzu database — schema, nodes, rels, indexes, everything. This is what `--db` reads. |
+| `.grz`    | A gzipped snapshot of a `.graph` produced by `db export`. Pipe one back into `db import` to recreate the DB elsewhere. |
 
 Select with `--db <name>` or `$KAZOO_DB`.
 

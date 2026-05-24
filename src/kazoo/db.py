@@ -77,14 +77,6 @@ def remove_db(name: str | None = None) -> Path:
     return path
 
 
-def export_to_stream(name: str | None, stream) -> Path:
-    """Stream the DB file's bytes into the given binary stream."""
-    src = db_path(name)
-    if not src.exists():
-        raise FileNotFoundError(f"database does not exist: {src}")
-    with src.open("rb") as f:
-        shutil.copyfileobj(f, stream)
-    return src
 
 
 def rename_db(old: str, new: str) -> tuple[Path, Path]:
@@ -98,30 +90,78 @@ def rename_db(old: str, new: str) -> tuple[Path, Path]:
     return src, dest
 
 
-def import_from_stream(name: str | None, stream, *, force: bool = False) -> Path:
-    """Write bytes from a binary stream into the named DB's path.
+_GZIP_MAGIC = b"\x1f\x8b"
 
-    Refuses zero-byte input so we never create an empty/corrupt DB.
+
+class _PrefixedStream:
+    """Read-only stream that yields `prefix` first, then delegates to `inner`."""
+
+    def __init__(self, prefix: bytes, inner):
+        self._prefix = prefix
+        self._inner = inner
+
+    def read(self, n: int = -1) -> bytes:
+        if self._prefix:
+            if n < 0 or n >= len(self._prefix):
+                head = self._prefix
+                self._prefix = b""
+                tail = self._inner.read(-1 if n < 0 else n - len(head))
+                return head + (tail or b"")
+            out = self._prefix[:n]
+            self._prefix = self._prefix[n:]
+            return out
+        return self._inner.read(n)
+
+
+def _maybe_gunzip(stream):
+    """If `stream` starts with gzip magic bytes, transparently decompress."""
+    head = stream.read(2)
+    if not head:
+        return stream
+    rejoined = _PrefixedStream(head, stream)
+    if head == _GZIP_MAGIC:
+        import gzip
+        return gzip.GzipFile(fileobj=rejoined)
+    return rejoined
+
+
+def export_to_stream_gzipped(name: str | None, stream) -> Path:
+    """Stream the DB file's bytes through gzip into the given binary stream."""
+    import gzip
+
+    src = db_path(name)
+    if not src.exists():
+        raise FileNotFoundError(f"database does not exist: {src}")
+    with src.open("rb") as f, gzip.GzipFile(fileobj=stream, mode="wb", compresslevel=6) as gz:
+        shutil.copyfileobj(f, gz)
+    return src
+
+
+def import_from_stream(name: str | None, stream) -> Path:
+    """Replace the named DB with bytes from a binary stream.
+
+    Auto-detects gzipped input via magic bytes. Always replaces — the .grz
+    file is the source of truth. Refuses zero-byte input so we never produce
+    an empty/corrupt DB.
     """
     dest = db_path(name)
-    if dest.exists() and not force:
-        raise FileExistsError(
-            f"target database already exists: {dest} (use --force to overwrite, or `kazoo db rm` first)"
-        )
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
+    if tmp.exists():
+        tmp.unlink()
     bytes_written = 0
+    source = _maybe_gunzip(stream)
     try:
         with tmp.open("wb") as f:
             while True:
-                chunk = stream.read(1 << 16)
+                chunk = source.read(1 << 16)
                 if not chunk:
                     break
                 f.write(chunk)
                 bytes_written += len(chunk)
         if bytes_written == 0:
             raise ValueError("no bytes on stdin — refusing to create an empty DB")
-        tmp.replace(dest)
+        tmp.replace(dest)  # atomic on POSIX
     finally:
         if tmp.exists():
             tmp.unlink()

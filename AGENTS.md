@@ -22,8 +22,8 @@ uv tool install --reinstall /path/to/repo  # from a checkout
 - **Success:** JSON on stdout. `--pretty` to indent.
 - **Failure:** non-zero exit, `{"error": "<message>"}` on stdout.
 - **`query -f <format>`:** `json` (default), `ndjson` (one row per line — pipe-friendly), `csv`, `tsv`.
-- **`db export`:** binary DB bytes on stdout (no JSON). Brief note on stderr.
-- **`db import`:** binary DB bytes on stdin. Brief note on stderr.
+- **`db export`:** gzipped `.grz` snapshot on stdout (no JSON). Brief note on stderr.
+- **`db import`:** `.grz` (or raw `.graph`) on stdin, **always replaces** the target. Brief note on stderr.
 - **REPL** (`kazoo repl`): meta-commands (`\schema`, `\stats`, `\d <table>`, `\use <db>`, `\quit`) emit JSON; SQL/Cypher emits result rows.
 
 ### Exit codes
@@ -75,12 +75,11 @@ kazoo --db agent data load Person people.csv                                    
 kazoo --db agent query 'MATCH (n:Person) RETURN n.id, n.name;' -f csv > out.csv    # export query results
 kazoo --db agent data clear Person --yes                                           # truncate
 
-# Move data around
-kazoo --db agent db export > snapshot.graph
-kazoo --db replica db import < snapshot.graph
-kazoo --db replica db import --force < snapshot.graph
+# Snapshot a whole DB (schema+data, gzipped) and restore it
+kazoo --db agent db export > snapshot.grz
+kazoo --db replica db import < snapshot.grz        # always replaces — .grz is the source of truth
 
-# Query a .graph file directly (no XDG import)
+# Query a live .graph file directly (no XDG import)
 kazoo --db ./snapshot.graph schema show
 ```
 
@@ -98,7 +97,6 @@ kazoo --db ./snapshot.graph schema show
 - `{"error": "kuzu: ..."}` — Cypher or DDL error. Read the message and adjust the query.
 - `{"error": "invalid <kind>: '...'"}` — identifier validation rejected your input. Sanitize before passing.
 - `{"error": "database does not exist: ..."}` — call `db init` first.
-- `{"error": "target database already exists: ..."}` (on import) — pass `--force` or `db rm` first.
 - `{"error": "unknown table: '...'"}` — `schema describe` it before assuming it's there.
 
 ## Examples to learn from

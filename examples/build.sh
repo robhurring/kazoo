@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the example graphs in your XDG kazoo dir.
 #
-# Default: import from the gzipped snapshots (fast).
+# Default: import the .grz snapshot (fast — `kazoo db import` auto-detects gzip).
 # --rebuild: drop and re-seed from schema.cypher + seed.cypher (slow, source of truth).
 #
 # Usage: ./examples/build.sh [--rebuild] [office|social|all]
@@ -18,7 +18,7 @@ fi
 import_one() {
   local name="$1"
   echo "==> importing '$name'"
-  gunzip -c "$name/$name.graph.gz" | kazoo --db "$name" db import --force
+  kazoo --db "$name" db import < "$name/$name.grz"
 }
 
 rebuild_one() {
@@ -26,10 +26,10 @@ rebuild_one() {
   echo "==> rebuilding '$name'"
   kazoo --db "$name" db rm --yes >/dev/null 2>&1 || true
   kazoo --db "$name" db init >/dev/null
-  kazoo --db "$name" schema apply < "$name/schema.cypher"
-  kazoo --db "$name" schema apply --no-atomic < "$name/seed.cypher"
+  kazoo --db "$name" schema apply              < "$name/schema.cypher"
+  kazoo --db "$name" schema apply --no-atomic  < "$name/seed.cypher"
   kazoo --db "$name" db stats
-  kazoo --db "$name" db export | gzip -9 > "$name/$name.graph.gz"
+  kazoo --db "$name" db export > "$name/$name.grz"
 }
 
 do_one() { if $rebuild; then rebuild_one "$1"; else import_one "$1"; fi; }

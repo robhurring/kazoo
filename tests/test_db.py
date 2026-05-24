@@ -140,7 +140,10 @@ def test_db_rm_missing(run):
 # -- export / import (stdout / stdin) ----------------------------------------
 
 
-def test_db_export_writes_bytes_to_stdout(run, runner):
+def test_db_export_writes_gzipped_bytes(run, runner):
+    """Export emits a gzipped (.grz) stream — magic bytes must be present."""
+    import gzip
+
     from kazoo.cli import app
     from kazoo.db import db_path
 
@@ -148,49 +151,61 @@ def test_db_export_writes_bytes_to_stdout(run, runner):
     result = runner.invoke(app, ["db", "export"])
     assert result.exit_code == 0
     raw = result.stdout_bytes if hasattr(result, "stdout_bytes") else result.stdout.encode("latin-1")
-    assert len(raw) > 100
-    assert raw == db_path(None).read_bytes()
+    assert raw[:2] == b"\x1f\x8b", "expected gzip magic at start of export"
+    decompressed = gzip.decompress(raw)
+    assert decompressed == db_path(None).read_bytes()
 
 
-def test_db_import_reads_bytes_from_stdin(run, runner):
+def test_db_import_round_trips_via_export(run, runner):
+    """Export then import — destination DB matches the source."""
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
-    payload = db_path(None).read_bytes()
-    result = runner.invoke(app, ["--db", "copy", "db", "import"], input=payload)
-    assert result.exit_code == 0
-    _, listing = run("db list")
-    assert "copy" in listing["databases"]
-    _, stats_data = run("--db copy db stats")
-    assert stats_data["nodes"]["Person"] == 2
+    src_bytes = db_path(None).read_bytes()
+    export_result = runner.invoke(app, ["db", "export"])
+    assert export_result.exit_code == 0
+    gz = export_result.stdout_bytes if hasattr(export_result, "stdout_bytes") else export_result.stdout.encode("latin-1")
+    import_result = runner.invoke(app, ["--db", "copy", "db", "import"], input=gz)
+    assert import_result.exit_code == 0, import_result.stdout
+    assert db_path("copy").read_bytes() == src_bytes
+    _, stats = run("--db copy db stats")
+    assert stats["nodes"]["Person"] == 2
 
 
-def test_db_import_refuses_overwrite(run, runner):
+def test_db_import_accepts_raw_graph(run, runner):
+    """A raw (non-gzipped) .graph stream still imports — gzip is auto-detected."""
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
-    payload = db_path(None).read_bytes()
-    result = runner.invoke(app, ["db", "import"], input=payload)
-    assert result.exit_code != 0
-    assert "already exists" in result.stdout
+    raw = db_path(None).read_bytes()
+    result = runner.invoke(app, ["--db", "copy", "db", "import"], input=raw)
+    assert result.exit_code == 0, result.stdout
+    assert db_path("copy").read_bytes() == raw
 
 
-def test_db_import_force_overwrites(run, runner):
+def test_db_import_always_replaces(run, runner):
+    """Re-importing into an existing DB replaces — no --force needed."""
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
-    payload = db_path(None).read_bytes()
-    result = runner.invoke(app, ["db", "import", "--force"], input=payload)
-    assert result.exit_code == 0
+    snapshot = db_path(None).read_bytes()
+    # Mutate the source DB so the snapshot is now stale relative to it.
+    run("data clear Person --yes")
+    _, stats = run("db stats")
+    assert stats["nodes"]["Person"] == 0
+    # Re-import the original snapshot back onto `default` — replaces.
+    result = runner.invoke(app, ["db", "import"], input=snapshot)
+    assert result.exit_code == 0, result.stdout
+    _, stats2 = run("db stats")
+    assert stats2["nodes"]["Person"] == 2
 
 
 def test_db_import_empty_stdin_fails(run, runner):
     from kazoo.cli import app
 
-    run("db init")
     result = runner.invoke(app, ["--db", "x", "db", "import"], input=b"")
     assert result.exit_code != 0
 

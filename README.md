@@ -77,9 +77,12 @@ kazoo db list
 kazoo db path mygraph
 kazoo db stats
 
-# Backup / restore / rename / delete
-kazoo db backup --out /backups/mygraph.graph
-kazoo db restore /backups/mygraph.graph --as restored
+# Backup / restore (Unix pipes — stdout/stdin)
+kazoo --db mydb db backup > /backups/mydb.graph
+kazoo --db restored db restore < /backups/mydb.graph
+kazoo --db restored db restore --force < /backups/mydb.graph   # overwrite
+
+# Rename / delete
 kazoo db rename old new
 kazoo db rm restored --yes
 

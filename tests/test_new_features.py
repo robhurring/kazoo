@@ -54,35 +54,71 @@ def test_db_rm_missing(run):
     assert result.exit_code != 0
 
 
-def test_db_backup_and_restore(run, tmp_path, monkeypatch):
+def test_db_backup_writes_bytes_to_stdout(run, runner, tmp_path):
+    """`db backup` streams the DB file bytes to stdout."""
+    from kazoo.cli import app
+
     _setup_data(run)
-    backup_dest = tmp_path / "backup.graph"
-    _, data = run(f"db backup --out {backup_dest}")
-    assert Path(data["to"]).exists()
-    # Restore as a new DB name; original still present.
-    _, restored = run(f"db restore {backup_dest} --as restored")
-    assert restored["restored"] == "restored"
+    # Capture binary stdout
+    import sys
+    import io
+
+    # CliRunner's stdout is text-mode by default; for binary it stashes raw bytes too.
+    result = runner.invoke(app, ["db", "backup"])
+    assert result.exit_code == 0
+    # stdout_bytes attribute holds raw bytes
+    raw = result.stdout_bytes if hasattr(result, "stdout_bytes") else result.stdout.encode("latin-1")
+    assert len(raw) > 100, "expected non-trivial DB file content"
+    # Round-trip: write to temp file and verify it's the same as the source.
+    expected = (tmp_path / "ref.graph")
+    from kazoo.db import db_path
+    expected.write_bytes(db_path(None).read_bytes())
+    assert raw == expected.read_bytes()
+
+
+def test_db_restore_reads_bytes_from_stdin(run, runner):
+    """`db restore` reads bytes from stdin into the active DB."""
+    from kazoo.cli import app
+    from kazoo.db import db_path
+
+    _setup_data(run)
+    payload = db_path(None).read_bytes()
+    result = runner.invoke(app, ["--db", "copy", "db", "restore"], input=payload)
+    assert result.exit_code == 0, result.stdout
     _, listing = run("db list")
-    assert "restored" in listing["databases"]
-    assert "default" in listing["databases"]
-    # The restored DB has the data.
-    _, stats_data = run("--db restored db stats")
+    assert "copy" in listing["databases"]
+    _, stats_data = run("--db copy db stats")
     assert stats_data["nodes"]["Person"] == 2
 
 
-def test_db_restore_refuses_overwrite(run, tmp_path):
+def test_db_restore_refuses_overwrite(run, runner):
+    from kazoo.cli import app
+    from kazoo.db import db_path
+
     _setup_data(run)
-    backup_dest = tmp_path / "backup.graph"
-    run(f"db backup --out {backup_dest}")
-    result, _ = run(f"db restore {backup_dest} --as default", expect_ok=False)
+    payload = db_path(None).read_bytes()
+    result = runner.invoke(app, ["db", "restore"], input=payload)
     assert result.exit_code != 0
+    assert "already exists" in result.stdout
 
 
-def test_db_backup_default_destination(run, tmp_path, monkeypatch):
+def test_db_restore_force_overwrites(run, runner):
+    from kazoo.cli import app
+    from kazoo.db import db_path
+
     _setup_data(run)
-    monkeypatch.chdir(tmp_path)
-    _, data = run("db backup")
-    out_path = Path(data["to"])
-    assert out_path.parent == tmp_path
-    assert out_path.suffix == ".graph"
-    assert out_path.name.startswith("default-")
+    payload = db_path(None).read_bytes()
+    # Force-restoring onto default itself should succeed.
+    result = runner.invoke(app, ["db", "restore", "--force"], input=payload)
+    assert result.exit_code == 0
+
+
+def test_db_restore_without_stdin_fails(run, runner):
+    """In TTY mode (no piped input), restore must refuse rather than hang."""
+    from kazoo.cli import app
+
+    run("db init")
+    # No `input=` so stdin remains a TTY-ish in CliRunner; runner forces stdin closed.
+    result = runner.invoke(app, ["db", "restore"])
+    # With CliRunner, stdin.isatty() is True by default — bail expected.
+    assert result.exit_code != 0

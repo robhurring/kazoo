@@ -359,38 +359,31 @@ def db_stats() -> None:
 
 
 @db_app.command("backup")
-def db_backup(
-    out: Annotated[
-        Path | None,
-        typer.Option("--out", help="Destination file or directory. Defaults to <name>-<ts>.graph in cwd."),
-    ] = None,
-) -> None:
-    """Copy the active DB file to a backup location."""
-    import datetime as dt
+def db_backup() -> None:
+    """Stream the active DB's bytes to stdout.
 
-    target = state.db_name
-    src = db.db_path(target)
-    if out is None:
-        ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-        out = Path.cwd() / f"{src.stem}-{ts}{db.DB_SUFFIX}"
+    Example: `kazoo --db mydb db backup > mydb.graph`
+    """
     with _handle_errors():
-        dest = db.backup_db(target, out)
-    emit({"backed_up": src.stem, "from": str(src), "to": str(dest)}, pretty=state.pretty)
+        src = db.backup_to_stream(state.db_name, sys.stdout.buffer)
+    print(f"backed up {src}", file=sys.stderr)
 
 
 @db_app.command("restore")
 def db_restore(
-    src: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Backup file.")],
-    as_name: Annotated[
-        str | None,
-        typer.Option("--as", help="Restore under this DB name. Defaults to the active DB or the backup's stem."),
-    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Overwrite the target DB if it already exists.")
+    ] = False,
 ) -> None:
-    """Restore a backup as a new database (will not overwrite an existing one)."""
-    target = as_name or state.db_name or src.stem
+    """Restore the active DB from bytes on stdin.
+
+    Example: `kazoo --db mydb db restore < backup.graph`
+    """
+    if sys.stdin.isatty():
+        _bail("no input on stdin (pipe a backup file: `kazoo --db NAME db restore < file.graph`)", code=2)
     with _handle_errors():
-        dest = db.restore_db(src, target)
-    emit({"restored": target, "from": str(src), "to": str(dest)}, pretty=state.pretty)
+        dest = db.restore_from_stream(state.db_name, sys.stdin.buffer, force=force)
+    print(f"restored to {dest}", file=sys.stderr)
 
 
 @data_app.command("load")

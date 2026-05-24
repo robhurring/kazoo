@@ -59,15 +59,14 @@ def remove_db(name: str | None = None) -> Path:
     return path
 
 
-def backup_db(name: str | None, dest: Path) -> Path:
+def backup_to_stream(name: str | None, stream) -> Path:
+    """Stream the DB file's bytes into the given binary stream."""
     src = db_path(name)
     if not src.exists():
         raise FileNotFoundError(f"database does not exist: {src}")
-    if dest.is_dir():
-        dest = dest / src.name
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dest)
-    return dest
+    with src.open("rb") as f:
+        shutil.copyfileobj(f, stream)
+    return src
 
 
 def rename_db(old: str, new: str) -> tuple[Path, Path]:
@@ -81,12 +80,31 @@ def rename_db(old: str, new: str) -> tuple[Path, Path]:
     return src, dest
 
 
-def restore_db(src: Path, as_name: str | None) -> Path:
-    if not src.exists() or not src.is_file():
-        raise FileNotFoundError(f"backup file not found: {src}")
-    dest = db_path(as_name)
+def restore_from_stream(name: str | None, stream, *, force: bool = False) -> Path:
+    """Write bytes from a binary stream into the named DB's path.
+
+    Refuses zero-byte input so we never create an empty/corrupt DB.
+    """
+    dest = db_path(name)
+    if dest.exists() and not force:
+        raise FileExistsError(
+            f"target database already exists: {dest} (use --force to overwrite, or `kazoo db rm` first)"
+        )
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.exists():
-        raise FileExistsError(f"target database already exists: {dest}")
-    shutil.copy2(src, dest)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    bytes_written = 0
+    try:
+        with tmp.open("wb") as f:
+            while True:
+                chunk = stream.read(1 << 16)
+                if not chunk:
+                    break
+                f.write(chunk)
+                bytes_written += len(chunk)
+        if bytes_written == 0:
+            raise ValueError("no bytes on stdin — refusing to create an empty DB")
+        tmp.replace(dest)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
     return dest

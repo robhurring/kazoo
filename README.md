@@ -91,9 +91,12 @@ kazoo data load Person people.csv
 # Truncate a table
 kazoo data clear Person --yes
 
-# Shell completion — emit a script to stdout, install where your shell expects it
-kazoo completions zsh  > "${fpath[1]}/_kazoo"
-kazoo completions bash > /usr/local/etc/bash_completion.d/kazoo
+# Shell completion — eval in your shell's rc file
+# ~/.zshrc:
+eval "$(kazoo completions zsh)"
+# ~/.bashrc:
+eval "$(kazoo completions bash)"
+# fish needs a file (its completion loader scans this dir):
 kazoo completions fish > ~/.config/fish/completions/kazoo.fish
 ```
 

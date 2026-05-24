@@ -303,23 +303,6 @@ def schema_drop(
         emit(schema.drop(db_name=state.db_name, name=name, if_exists=if_exists), pretty=state.pretty)
 
 
-@db_app.command("list")
-def db_list() -> None:
-    """List databases under the XDG data dir."""
-    emit({"root": str(db.data_root()), "databases": db.list_dbs()}, pretty=state.pretty)
-
-
-@db_app.command("path")
-def db_path(
-    name: Annotated[str | None, typer.Argument(help="DB name. Defaults to the active DB.")] = None,
-) -> None:
-    """Print the filesystem path for a database."""
-    target = name or state.db_name
-    with _handle_errors():
-        path = db.db_path(target)
-    emit({"name": path.stem, "path": str(path), "exists": path.exists()}, pretty=state.pretty)
-
-
 @db_app.command("init")
 def db_init(
     name: Annotated[str | None, typer.Argument(help="DB name. Defaults to the active DB.")] = None,
@@ -356,13 +339,6 @@ def db_rm(
         _bail("aborted", code=1)
     db.remove_db(name)
     emit({"removed": name, "path": str(path)}, pretty=state.pretty)
-
-
-@db_app.command("stats")
-def db_stats() -> None:
-    """Show per-table row counts."""
-    with _handle_errors():
-        emit(schema.stats(db_name=state.db_name), pretty=state.pretty)
 
 
 @db_app.command("export")

@@ -11,7 +11,7 @@ def test_data_load_csv(run, tmp_path):
     csv_path.write_text("Alice,30\nBob,40\n")
     _, data = run(f"data load Person {csv_path}")
     assert data["loaded"] == "Person"
-    _, stats = run("db stats")
+    _, _info = run("info"); stats = _info["stats"]
     assert stats["nodes"]["Person"] == 2
 
 
@@ -32,7 +32,7 @@ def test_data_clear_node_table(run):
     run('query \'CREATE (:Person {name: "Alice"}), (:Person {name: "Bob"});\'')
     _, data = run("data clear Person --yes")
     assert data["cleared"] == "Person"
-    _, stats = run("db stats")
+    _, _info = run("info"); stats = _info["stats"]
     assert stats["nodes"]["Person"] == 0
 
 
@@ -44,7 +44,7 @@ def test_data_clear_rel_table(run):
     run("query 'CREATE (:A {id:1}), (:B {id:2});'")
     run("query 'MATCH (a:A {id:1}), (b:B {id:2}) CREATE (a)-[:R]->(b);'")
     run("data clear R --yes")
-    _, stats = run("db stats")
+    _, _info = run("info"); stats = _info["stats"]
     assert stats["rels"]["R"] == 0
     assert stats["nodes"]["A"] == 1
 

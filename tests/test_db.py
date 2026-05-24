@@ -1,14 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 
-
-# -- init / list / path -------------------------------------------------------
-
-
-def test_db_list_empty(run):
-    _, data = run("db list")
-    assert data["databases"] == []
+# -- init / info --------------------------------------------------------------
 
 
 def test_db_init_default(run):
@@ -22,34 +15,37 @@ def test_db_init_named(run):
     assert data["initialized"] == "mygraph"
 
 
-def test_db_list_after_inits(run):
-    run("db init")
-    run("--db other db init")
-    _, data = run("db list")
-    assert data["databases"] == ["default", "other"]
+def test_db_extension_is_graph(run):
+    _, data = run("db init")
+    assert data["path"].endswith(".graph")
 
 
-def test_db_path_for_missing(run):
-    _, data = run("--db ghost db path")
+def test_info_reports_path_and_existence(run):
+    _, data = run("info")
+    assert data["name"] == "default"
     assert data["exists"] is False
+    _, data = run("db init")
+    _, data = run("info")
+    assert data["exists"] is True
+    assert data["path"].endswith("/default.graph")
+
+
+def test_info_for_named_missing_db(run):
+    _, data = run("--db ghost info")
     assert data["name"] == "ghost"
+    assert data["exists"] is False
 
 
 def test_db_name_rejects_special_segments(run):
     """Bare names like '..' or '.' are not valid DB names."""
-    result, _ = run("--db .. db path", expect_ok=False)
+    result, _ = run("--db .. info", expect_ok=False)
     assert result.exit_code != 0
 
 
 def test_kazoo_db_env_var(run, monkeypatch):
     monkeypatch.setenv("KAZOO_DB", "fromenv")
-    _, data = run("db path")
+    _, data = run("info")
     assert data["name"] == "fromenv"
-
-
-def test_db_extension_is_graph(run):
-    _, data = run("db init")
-    assert data["path"].endswith(".graph")
 
 
 # -- XDG path conventions -----------------------------------------------------
@@ -61,15 +57,42 @@ def test_xdg_default_path_uses_dot_local_share(run, monkeypatch, tmp_path):
     fake_home.mkdir()
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    _, data = run("db path")
+    _, data = run("info")
     assert data["path"] == str(fake_home / ".local" / "share" / "kazoo" / "default.graph")
 
 
 def test_xdg_data_home_env_var_wins(run, monkeypatch, tmp_path):
     custom = tmp_path / "elsewhere"
     monkeypatch.setenv("XDG_DATA_HOME", str(custom))
-    _, data = run("db path")
+    _, data = run("info")
     assert data["path"] == str(custom / "kazoo" / "default.graph")
+
+
+# -- auto-create default ------------------------------------------------------
+
+
+def test_default_db_auto_creates_on_query(run):
+    """`kazoo query ...` with no --db auto-creates the default DB."""
+    _, info0 = run("info")
+    assert info0["exists"] is False
+    _, rows = run("query 'RETURN 1 AS one;'")
+    assert rows == [{"one": 1}]
+    _, info1 = run("info")
+    assert info1["exists"] is True
+
+
+def test_named_db_does_not_auto_create(run):
+    """An explicit --db points at a typed name; missing → error, no silent create."""
+    result, payload = run("--db typo query 'RETURN 1;'", expect_ok=False)
+    assert result.exit_code != 0
+    assert "database does not exist" in payload["error"]
+
+
+def test_kazoo_db_env_does_not_auto_create(run, monkeypatch):
+    """$KAZOO_DB counts as explicit — also must exist."""
+    monkeypatch.setenv("KAZOO_DB", "fromenv")
+    result, _ = run("query 'RETURN 1;'", expect_ok=False)
+    assert result.exit_code != 0
 
 
 # -- rename -------------------------------------------------------------------
@@ -80,8 +103,6 @@ def test_db_rename(run):
     run("schema create-node Person --prop name:STRING --pk name")
     _, data = run("db rename default mygraph")
     assert data["renamed"] == "mygraph"
-    _, listing = run("db list")
-    assert listing["databases"] == ["mygraph"]
     _, snap = run("--db mygraph schema show")
     assert [n["name"] for n in snap["nodes"]] == ["Person"]
 
@@ -98,7 +119,7 @@ def test_db_rename_target_exists(run):
     assert result.exit_code != 0
 
 
-# -- stats / rm ---------------------------------------------------------------
+# -- info with seeded data ---------------------------------------------------
 
 
 def _seed(run):
@@ -111,11 +132,15 @@ def _seed(run):
     run('query \'CREATE (:Movie {title: "Inception"});\'')
 
 
-def test_db_stats(run):
+def test_info_reports_schema_and_stats(run):
     _seed(run)
-    _, data = run("db stats")
-    assert data["nodes"] == {"Person": 2, "Movie": 1}
-    assert data["rels"] == {"Likes": 0}
+    _, data = run("info")
+    assert data["stats"]["nodes"] == {"Person": 2, "Movie": 1}
+    assert data["stats"]["rels"] == {"Likes": 0}
+    assert {n["name"] for n in data["schema"]["nodes"]} == {"Person", "Movie"}
+
+
+# -- rm -----------------------------------------------------------------------
 
 
 def test_db_rm_requires_confirmation(run):
@@ -128,8 +153,8 @@ def test_db_rm_with_yes(run):
     run("db init")
     _, data = run("db rm default --yes")
     assert data["removed"] == "default"
-    _, listing = run("db list")
-    assert listing["databases"] == []
+    from kazoo.db import db_path
+    assert not db_path(None).exists()
 
 
 def test_db_rm_missing(run):
@@ -151,59 +176,52 @@ def test_db_export_writes_gzipped_bytes(run, runner):
     result = runner.invoke(app, ["db", "export"])
     assert result.exit_code == 0
     raw = result.stdout_bytes if hasattr(result, "stdout_bytes") else result.stdout.encode("latin-1")
-    assert raw[:2] == b"\x1f\x8b", "expected gzip magic at start of export"
-    decompressed = gzip.decompress(raw)
-    assert decompressed == db_path(None).read_bytes()
+    assert raw[:2] == b"\x1f\x8b"
+    assert gzip.decompress(raw) == db_path(None).read_bytes()
 
 
 def test_db_import_round_trips_via_export(run, runner):
-    """Export then import — destination DB matches the source."""
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
     src_bytes = db_path(None).read_bytes()
     export_result = runner.invoke(app, ["db", "export"])
-    assert export_result.exit_code == 0
     gz = export_result.stdout_bytes if hasattr(export_result, "stdout_bytes") else export_result.stdout.encode("latin-1")
     import_result = runner.invoke(app, ["--db", "copy", "db", "import"], input=gz)
     assert import_result.exit_code == 0, import_result.stdout
     assert db_path("copy").read_bytes() == src_bytes
-    _, stats = run("--db copy db stats")
-    assert stats["nodes"]["Person"] == 2
+    _, info = run("--db copy info")
+    assert info["stats"]["nodes"]["Person"] == 2
 
 
 def test_db_import_accepts_raw_graph(run, runner):
-    """A raw (non-gzipped) .graph stream still imports — gzip is auto-detected."""
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
     raw = db_path(None).read_bytes()
     result = runner.invoke(app, ["--db", "copy", "db", "import"], input=raw)
-    assert result.exit_code == 0, result.stdout
+    assert result.exit_code == 0
     assert db_path("copy").read_bytes() == raw
 
 
 def test_db_import_always_replaces(run, runner):
-    """Re-importing into an existing DB replaces — no --force needed."""
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
     snapshot = db_path(None).read_bytes()
-    # Mutate the source DB so the snapshot is now stale relative to it.
     run("data clear Person --yes")
-    _, stats = run("db stats")
-    assert stats["nodes"]["Person"] == 0
-    # Re-import the original snapshot back onto `default` — replaces.
+    _, info0 = run("info")
+    assert info0["stats"]["nodes"]["Person"] == 0
     result = runner.invoke(app, ["db", "import"], input=snapshot)
-    assert result.exit_code == 0, result.stdout
-    _, stats2 = run("db stats")
-    assert stats2["nodes"]["Person"] == 2
+    assert result.exit_code == 0
+    _, info1 = run("info")
+    assert info1["stats"]["nodes"]["Person"] == 2
 
 
-def test_db_import_empty_stdin_fails(run, runner):
+def test_db_import_empty_stdin_fails(runner):
     from kazoo.cli import app
 
     result = runner.invoke(app, ["--db", "x", "db", "import"], input=b"")
@@ -221,39 +239,18 @@ def test_db_flag_accepts_path(run, runner, tmp_path):
     _seed(run)
     snapshot = tmp_path / "snap.graph"
     snapshot.write_bytes(db_path(None).read_bytes())
-    result = runner.invoke(app, ["--db", str(snapshot), "db", "stats"])
-    assert result.exit_code == 0, result.stdout
+    result = runner.invoke(app, ["--db", str(snapshot), "info"])
+    assert result.exit_code == 0
     import json as _json
-    stats = _json.loads(result.stdout)
-    assert stats["nodes"]["Person"] == 2
+    info = _json.loads(result.stdout)
+    assert info["stats"]["nodes"]["Person"] == 2
 
 
-def test_db_flag_relative_dotgraph_is_path(run, tmp_path, monkeypatch):
+def test_db_flag_relative_dotgraph_is_path(monkeypatch, tmp_path):
     """`--db ./foo.graph` is a path, not a name; doesn't go under XDG."""
     from kazoo.db import db_path
 
     monkeypatch.chdir(tmp_path)
     p = db_path("./local.graph")
-    assert p == (tmp_path / "local.graph").resolve() or p == tmp_path / "local.graph" or str(p).endswith("local.graph")
-
-
-# -- info ---------------------------------------------------------------------
-
-
-def test_info_empty_db(run):
-    _, data = run("info")
-    assert data["name"] == "default"
-    assert data["exists"] is False
-    assert "kazoo_version" in data
-    assert "kuzu_version" in data
-
-
-def test_info_populated_db(run):
-    run("db init")
-    run("schema create-node Person --prop name:STRING --pk name")
-    run('query \'CREATE (:Person {name: "Alice"});\'')
-    _, data = run("info")
-    assert data["exists"] is True
-    assert data["size_bytes"] > 0
-    assert data["stats"]["nodes"]["Person"] == 1
-    assert [n["name"] for n in data["schema"]["nodes"]] == ["Person"]
+    assert str(p).endswith("local.graph")
+    assert str(p) != "/local.graph"

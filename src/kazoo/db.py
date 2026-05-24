@@ -56,15 +56,20 @@ def list_dbs() -> list[str]:
 def open_db(name: str | None = None, *, create: bool = False):
     """Open a Kuzu Connection for the named DB.
 
-    By default, refuses to create a missing DB so a typo'd name doesn't
-    silently produce an empty database. Pass `create=True` for `db init`.
+    Auto-creates the bare default DB (no `--db` and no `$KAZOO_DB`) so
+    `kazoo query ...` Just Works out of the box. Any explicit name —
+    either `--db <name>` or `$KAZOO_DB` — must already exist; this
+    keeps typos from silently producing an empty DB. Pass `create=True`
+    for `db init`.
     """
     import kuzu  # lazy: kuzu is a large native module; avoid importing for cheap commands
 
     path = db_path(name)
+    auto_default = name is None and os.environ.get("KAZOO_DB") is None
     if not path.exists():
-        if not create:
-            raise FileNotFoundError(f"database does not exist: {path} (run `kazoo --db {name or 'default'} db init`)")
+        if not (create or auto_default):
+            hint = f"--db {name} " if name else ""
+            raise FileNotFoundError(f"database does not exist: {path} (run `kazoo {hint}db init`)")
         path.parent.mkdir(parents=True, exist_ok=True)
     database = kuzu.Database(str(path))
     return kuzu.Connection(database)

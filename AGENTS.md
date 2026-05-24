@@ -64,11 +64,10 @@ kazoo --db agent query 'MATCH (n) RETURN n' -f ndjson | jq -c 'select(.n.type ==
 kazoo --db agent query 'MATCH (a)-[:KNOWS*1..3]->(b) RETURN count(*)' --explain
 kazoo --db agent query 'MATCH (a)-[:KNOWS*1..3]->(b) RETURN count(*)' --profile
 
-# Inspect schema
-kazoo --db agent schema show              # full schema as JSON
-kazoo --db agent schema describe Person   # one table
-kazoo --db agent db stats                 # row counts per table
+# Inspect
 kazoo --db agent info                     # version + path + size + schema + stats
+kazoo --db agent schema show              # schema only
+kazoo --db agent schema describe Person   # one table
 
 # Bulk data
 kazoo --db agent data load Person people.csv                                       # COPY FROM

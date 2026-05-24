@@ -78,11 +78,6 @@ kazoo schema drop-column Person score
 # Drop a table
 kazoo schema drop Person --if-exists
 
-# Inspect databases
-kazoo db list
-kazoo db path mygraph
-kazoo db stats
-
 # Snapshot / restore
 kazoo --db mydb db export > last-backup.grz
 kazoo --db imported db import < last-backup.grz
@@ -110,11 +105,12 @@ kazoo completions fish > ~/.config/fish/completions/kazoo.fish
 
 Databases live under `$XDG_DATA_HOME/kazoo/` (defaults to `~/.local/share/kazoo/` on every OS, including macOS).
 
-- Default DB: `$XDG_DATA_HOME/kazoo/default.graph`
-- Named DBs: `$XDG_DATA_HOME/kazoo/<name>.graph`
+- Default DB: `$XDG_DATA_HOME/kazoo/default.graph` — auto-created on first use, no setup needed.
+- Named DBs: `$XDG_DATA_HOME/kazoo/<name>.graph` — must be initialized explicitly (`kazoo --db <name> db init`).
 
-`--db` accepts either a bare name (resolved under the XDG dir) or a path to a
-`.graph` file (anything containing `/` or ending in `.graph` is taken as-is).
+`--db` accepts either a bare name (resolved under the XDG dir) or a path to a `.graph` file (anything containing `/` or ending in `.graph` is taken as-is). `$KAZOO_DB` selects the same way.
+
+Pointing at a missing named DB errors instead of silently creating one — that's only the default's behavior.
 
 ## File types
 

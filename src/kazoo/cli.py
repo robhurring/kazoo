@@ -47,7 +47,7 @@ def main(
         str | None,
         typer.Option("--db", "-d", help="Named DB under the XDG data dir. Defaults to $KAZOO_DB or 'default'."),
     ] = None,
-    pretty: Annotated[bool, typer.Option("--pretty", "-p", help="Indent JSON output.")] = False,
+    pretty: Annotated[bool, typer.Option("--pretty", help="Indent JSON output.")] = False,
     _version: Annotated[
         bool | None,
         typer.Option("--version", "-V", callback=_version_callback, is_eager=True, help="Show version and exit."),
@@ -139,7 +139,7 @@ def query_cmd(
     cypher: Annotated[str | None, typer.Argument(help="Cypher query. Omit to read from stdin (pipe a file with `< file`).")] = None,
     param: Annotated[
         list[str],
-        typer.Option("--param", help="Bind a parameter as NAME=VALUE (JSON value or string). Repeatable."),
+        typer.Option("--param", "-p", help="Bind a parameter as NAME=VALUE (JSON value or string). Repeatable."),
     ] = [],
     explain: Annotated[
         bool, typer.Option("--explain", help="Prefix with EXPLAIN — return the query plan instead of results.")

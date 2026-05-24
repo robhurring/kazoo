@@ -22,8 +22,8 @@ kazoo --db mygraph query "MATCH (n) RETURN n"
 # Pipe a query in
 echo "MATCH (n) RETURN count(n)" | kazoo query
 
-# Run a query file
-kazoo query --file queries/find_friends.cypher
+# Run a query file (Unix style: pipe it in)
+kazoo query < queries/find_friends.cypher
 
 # Pick an output format (default: json). Pipe to a file the Unix way.
 kazoo query 'MATCH (p:Person) RETURN p' -f json   > people.json
@@ -34,7 +34,7 @@ kazoo query 'MATCH (p:Person) RETURN p.name, p.age' -f tsv > people.tsv
 # Interactive REPL (multi-line, ; terminates, \help for meta-commands)
 kazoo repl
 
-# Parameter binding (JSON values; bare strings ok)
+# Parameter binding (JSON values; bare strings ok). `-p` is an alias for --param.
 kazoo query 'MATCH (p:Person {name: $who}) RETURN p' --param who=Alice
 kazoo query 'MATCH (p:Person) WHERE p.age IN $ages RETURN p' --param ages='[30,40]'
 

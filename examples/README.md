@@ -13,19 +13,20 @@ kazoo --db social db import < examples/social/social.grz
 ```
 
 After that, `kazoo --db office ...` and `kazoo --db social ...` just work.
-Helper:
-
-```bash
-./examples/build.sh           # imports both
-./examples/build.sh office    # just office
-./examples/build.sh --rebuild # re-seed from schema.cypher + seed.cypher
-```
-
 Each DB lands at `$XDG_DATA_HOME/kazoo/<name>.graph`
 (default `~/.local/share/kazoo/<name>.graph`).
 
-The `.grz` file is regenerated whenever `schema.cypher` or `seed.cypher`
-changes (`./examples/build.sh --rebuild` does this end-to-end).
+### Regenerating a snapshot
+
+If you edit `schema.cypher` or `seed.cypher`, refresh the `.grz`:
+
+```bash
+kazoo --db office db rm --yes
+kazoo --db office db init
+kazoo --db office schema apply              < examples/office/schema.cypher
+kazoo --db office schema apply --no-atomic  < examples/office/seed.cypher
+kazoo --db office db export                 > examples/office/office.grz
+```
 
 ---
 

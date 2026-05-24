@@ -36,8 +36,8 @@ changes (`./examples/build.sh --rebuild` does this end-to-end).
 
 ```bash
 # Everyone reporting (directly or transitively) to Grace Hopper
-kazoo --db office query --param boss=2 \
-  'MATCH (p:Person)-[:REPORTS_TO*1..]->(b:Person {id: $boss})
+kazoo --db office query --param boss='Grace Hopper' \
+  'MATCH (p:Person)-[:REPORTS_TO*1..]->(b:Person {name: $boss})
    RETURN p.name AS report, p.title AS title ORDER BY report;'
 
 # Who works on the Graph DB rewrite, and at what allocation?

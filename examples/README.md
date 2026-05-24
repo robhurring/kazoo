@@ -42,8 +42,8 @@ kazoo --db office query --param boss='Grace Hopper' \
    RETURN p.name AS report, p.title AS title ORDER BY report;'
 
 # Who works on the Graph DB rewrite, and at what allocation?
-kazoo --db office query \
-  'MATCH (p:Person)-[w:WORKS_ON]->(proj:Project {name: "Graph DB rewrite"})
+kazoo --db office query --param project='Graph DB rewrite' \
+  'MATCH (p:Person)-[w:WORKS_ON]->(proj:Project {name: $project})
    RETURN p.name AS person, w.role AS role, w.allocation_pct AS pct
    ORDER BY pct DESC;'
 

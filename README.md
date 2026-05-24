@@ -30,23 +30,23 @@ kazoo --db mygraph query "MATCH (n) RETURN n"
 # Pipe a query in
 echo "MATCH (n) RETURN count(n)" | kazoo query
 
-# Run a query file (Unix style: pipe it in)
+# Query from a file
 kazoo query < queries/find_friends.cypher
 
-# Pick an output format (default: json). Pipe to a file the Unix way.
+# Output formats
 kazoo query 'MATCH (p:Person) RETURN p' -f json   > people.json
 kazoo query 'MATCH (p:Person) RETURN p' -f ndjson | jq .
 kazoo query 'MATCH (p:Person) RETURN p.name, p.age' -f csv > people.csv
 kazoo query 'MATCH (p:Person) RETURN p.name, p.age' -f tsv > people.tsv
 
-# Interactive REPL (multi-line, ; terminates, \help for meta-commands)
+# Interactive REPL
 kazoo repl
 
-# Parameter binding (JSON values; bare strings ok). `-p` is an alias for --param.
+# Parameter binding
 kazoo query 'MATCH (p:Person {name: $who}) RETURN p' --param who=Alice
 kazoo query 'MATCH (p:Person) WHERE p.age IN $ages RETURN p' --param ages='[30,40]'
 
-# One-shot summary: version, db path, size, schema, stats
+# Summary
 kazoo info
 
 # Show the schema
@@ -56,17 +56,15 @@ kazoo schema show
 kazoo query "MATCH (p:Person) RETURN p" --explain
 kazoo query "MATCH (p:Person) RETURN p" --profile
 
-# Apply DDL from stdin (atomic by default — rolls back on partial failure)
-kazoo schema apply              < schema.cypher
-kazoo schema apply --no-atomic  < schema.cypher   # apply best-effort, keep partial
+# Apply DDL
+kazoo schema apply             < schema.cypher
+kazoo schema apply --no-atomic < schema.cypher
 
 # Export the schema as Cypher DDL
 kazoo schema export
 
 # Create a node table
 kazoo schema create-node Person --prop name:STRING --prop age:INT64 --pk name
-
-# Idempotent (no error if it already exists)
 kazoo schema create-node Person --prop name:STRING --pk name --if-not-exists
 
 # Create a relationship table
@@ -77,34 +75,34 @@ kazoo schema add-column Person bio:STRING
 kazoo schema add-column Person score:INT64 --default 0
 kazoo schema drop-column Person score
 
-# Drop a table (with optional idempotency)
+# Drop a table
 kazoo schema drop Person --if-exists
 
-# List databases / show DB path / counts
+# Inspect databases
 kazoo db list
 kazoo db path mygraph
 kazoo db stats
 
-# Snapshot a whole DB (schema+data, gzipped) and restore it elsewhere
+# Snapshot / restore
 kazoo --db mydb db export > last-backup.grz
-kazoo --db imported db import < last-backup.grz   # always replaces
+kazoo --db imported db import < last-backup.grz
 
 # Rename / delete
 kazoo db rename old new
 kazoo db rm imported --yes
 
-# Bulk-load (CSV / Parquet / JSON auto-detected from extension)
+# Bulk-load
 kazoo data load Person people.csv
 
 # Truncate a table
 kazoo data clear Person --yes
 
-# Shell completion — eval in your shell's rc file
+# Shell completion
 # ~/.zshrc:
 eval "$(kazoo completions zsh)"
 # ~/.bashrc:
 eval "$(kazoo completions bash)"
-# fish needs a file (its completion loader scans this dir):
+# fish:
 kazoo completions fish > ~/.config/fish/completions/kazoo.fish
 ```
 

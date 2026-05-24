@@ -35,8 +35,9 @@ def test_db_path_for_missing(run):
     assert data["name"] == "ghost"
 
 
-def test_db_path_rejects_separator(run):
-    result, _ = run("--db ../escape db path", expect_ok=False)
+def test_db_name_rejects_special_segments(run):
+    """Bare names like '..' or '.' are not valid DB names."""
+    result, _ = run("--db .. db path", expect_ok=False)
     assert result.exit_code != 0
 
 
@@ -136,28 +137,28 @@ def test_db_rm_missing(run):
     assert result.exit_code != 0
 
 
-# -- backup / restore (stdout / stdin) ---------------------------------------
+# -- export / import (stdout / stdin) ----------------------------------------
 
 
-def test_db_backup_writes_bytes_to_stdout(run, runner, tmp_path):
+def test_db_export_writes_bytes_to_stdout(run, runner):
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
-    result = runner.invoke(app, ["db", "backup"])
+    result = runner.invoke(app, ["db", "export"])
     assert result.exit_code == 0
     raw = result.stdout_bytes if hasattr(result, "stdout_bytes") else result.stdout.encode("latin-1")
     assert len(raw) > 100
     assert raw == db_path(None).read_bytes()
 
 
-def test_db_restore_reads_bytes_from_stdin(run, runner):
+def test_db_import_reads_bytes_from_stdin(run, runner):
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
     payload = db_path(None).read_bytes()
-    result = runner.invoke(app, ["--db", "copy", "db", "restore"], input=payload)
+    result = runner.invoke(app, ["--db", "copy", "db", "import"], input=payload)
     assert result.exit_code == 0
     _, listing = run("db list")
     assert "copy" in listing["databases"]
@@ -165,34 +166,60 @@ def test_db_restore_reads_bytes_from_stdin(run, runner):
     assert stats_data["nodes"]["Person"] == 2
 
 
-def test_db_restore_refuses_overwrite(run, runner):
+def test_db_import_refuses_overwrite(run, runner):
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
     payload = db_path(None).read_bytes()
-    result = runner.invoke(app, ["db", "restore"], input=payload)
+    result = runner.invoke(app, ["db", "import"], input=payload)
     assert result.exit_code != 0
     assert "already exists" in result.stdout
 
 
-def test_db_restore_force_overwrites(run, runner):
+def test_db_import_force_overwrites(run, runner):
     from kazoo.cli import app
     from kazoo.db import db_path
 
     _seed(run)
     payload = db_path(None).read_bytes()
-    result = runner.invoke(app, ["db", "restore", "--force"], input=payload)
+    result = runner.invoke(app, ["db", "import", "--force"], input=payload)
     assert result.exit_code == 0
 
 
-def test_db_restore_empty_stdin_fails(run, runner):
+def test_db_import_empty_stdin_fails(run, runner):
     from kazoo.cli import app
 
     run("db init")
-    # Provide empty bytes — restore must refuse and not create the file.
-    result = runner.invoke(app, ["--db", "x", "db", "restore"], input=b"")
+    result = runner.invoke(app, ["--db", "x", "db", "import"], input=b"")
     assert result.exit_code != 0
+
+
+# -- --db can be a file path -------------------------------------------------
+
+
+def test_db_flag_accepts_path(run, runner, tmp_path):
+    """A --db value containing '/' or ending with .graph is treated as a file path."""
+    from kazoo.cli import app
+    from kazoo.db import db_path
+
+    _seed(run)
+    snapshot = tmp_path / "snap.graph"
+    snapshot.write_bytes(db_path(None).read_bytes())
+    result = runner.invoke(app, ["--db", str(snapshot), "db", "stats"])
+    assert result.exit_code == 0, result.stdout
+    import json as _json
+    stats = _json.loads(result.stdout)
+    assert stats["nodes"]["Person"] == 2
+
+
+def test_db_flag_relative_dotgraph_is_path(run, tmp_path, monkeypatch):
+    """`--db ./foo.graph` is a path, not a name; doesn't go under XDG."""
+    from kazoo.db import db_path
+
+    monkeypatch.chdir(tmp_path)
+    p = db_path("./local.graph")
+    assert p == (tmp_path / "local.graph").resolve() or p == tmp_path / "local.graph" or str(p).endswith("local.graph")
 
 
 # -- info ---------------------------------------------------------------------

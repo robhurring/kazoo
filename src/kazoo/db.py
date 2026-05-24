@@ -20,6 +20,11 @@ def data_root() -> Path:
     return base / APP_NAME
 
 
+def _looks_like_path(value: str) -> bool:
+    """A `--db` value that looks like a path to a .graph file rather than a bare name."""
+    return ("/" in value) or value.endswith(DB_SUFFIX)
+
+
 def _resolve_name(name: str | None) -> str:
     resolved = name or os.environ.get("KAZOO_DB") or DEFAULT_DB_NAME
     if "/" in resolved or resolved in {"", ".", ".."}:
@@ -28,8 +33,16 @@ def _resolve_name(name: str | None) -> str:
 
 
 def db_path(name: str | None = None) -> Path:
-    """Resolve filesystem path (a single file) for a named DB."""
-    return data_root() / f"{_resolve_name(name)}{DB_SUFFIX}"
+    """Resolve filesystem path for a DB.
+
+    If `name` looks like a path (contains '/', ends in .graph, or starts with
+    '~' or '.'), it's used as a file path directly. Otherwise it's resolved
+    as a bare name under the XDG data dir.
+    """
+    candidate = name or os.environ.get("KAZOO_DB") or DEFAULT_DB_NAME
+    if _looks_like_path(candidate):
+        return Path(candidate).expanduser()
+    return data_root() / f"{_resolve_name(candidate)}{DB_SUFFIX}"
 
 
 def list_dbs() -> list[str]:
@@ -39,13 +52,18 @@ def list_dbs() -> list[str]:
     return sorted(p.stem for p in root.iterdir() if p.is_file() and p.suffix == DB_SUFFIX)
 
 
-def open_db(name: str | None = None, *, create: bool = True):
+def open_db(name: str | None = None, *, create: bool = False):
+    """Open a Kuzu Connection for the named DB.
+
+    By default, refuses to create a missing DB so a typo'd name doesn't
+    silently produce an empty database. Pass `create=True` for `db init`.
+    """
     import kuzu  # lazy: kuzu is a large native module; avoid importing for cheap commands
 
     path = db_path(name)
     if not path.exists():
         if not create:
-            raise FileNotFoundError(f"database does not exist: {path}")
+            raise FileNotFoundError(f"database does not exist: {path} (run `kazoo --db {name or 'default'} db init`)")
         path.parent.mkdir(parents=True, exist_ok=True)
     database = kuzu.Database(str(path))
     return kuzu.Connection(database)
@@ -59,7 +77,7 @@ def remove_db(name: str | None = None) -> Path:
     return path
 
 
-def backup_to_stream(name: str | None, stream) -> Path:
+def export_to_stream(name: str | None, stream) -> Path:
     """Stream the DB file's bytes into the given binary stream."""
     src = db_path(name)
     if not src.exists():
@@ -80,7 +98,7 @@ def rename_db(old: str, new: str) -> tuple[Path, Path]:
     return src, dest
 
 
-def restore_from_stream(name: str | None, stream, *, force: bool = False) -> Path:
+def import_from_stream(name: str | None, stream, *, force: bool = False) -> Path:
     """Write bytes from a binary stream into the named DB's path.
 
     Refuses zero-byte input so we never create an empty/corrupt DB.

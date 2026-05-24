@@ -358,32 +358,32 @@ def db_stats() -> None:
         emit(schema.stats(db_name=state.db_name), pretty=state.pretty)
 
 
-@db_app.command("backup")
-def db_backup() -> None:
+@db_app.command("export")
+def db_export() -> None:
     """Stream the active DB's bytes to stdout.
 
-    Example: `kazoo --db mydb db backup > mydb.graph`
+    Example: `kazoo --db mydb db export > mydb.graph`
     """
     with _handle_errors():
-        src = db.backup_to_stream(state.db_name, sys.stdout.buffer)
-    print(f"backed up {src}", file=sys.stderr)
+        src = db.export_to_stream(state.db_name, sys.stdout.buffer)
+    print(f"exported {src}", file=sys.stderr)
 
 
-@db_app.command("restore")
-def db_restore(
+@db_app.command("import")
+def db_import(
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Overwrite the target DB if it already exists.")
     ] = False,
 ) -> None:
-    """Restore the active DB from bytes on stdin.
+    """Import the active DB from bytes on stdin.
 
-    Example: `kazoo --db mydb db restore < backup.graph`
+    Example: `kazoo --db mydb db import < snapshot.graph`
     """
     if sys.stdin.isatty():
-        _bail("no input on stdin (pipe a backup file: `kazoo --db NAME db restore < file.graph`)", code=2)
+        _bail("no input on stdin (pipe a .graph file: `kazoo --db NAME db import < file.graph`)", code=2)
     with _handle_errors():
-        dest = db.restore_from_stream(state.db_name, sys.stdin.buffer, force=force)
-    print(f"restored to {dest}", file=sys.stderr)
+        dest = db.import_from_stream(state.db_name, sys.stdin.buffer, force=force)
+    print(f"imported to {dest}", file=sys.stderr)
 
 
 @data_app.command("load")

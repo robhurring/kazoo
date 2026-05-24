@@ -77,14 +77,14 @@ kazoo db list
 kazoo db path mygraph
 kazoo db stats
 
-# Backup / restore (Unix pipes — stdout/stdin)
-kazoo --db mydb db backup > /backups/mydb.graph
-kazoo --db restored db restore < /backups/mydb.graph
-kazoo --db restored db restore --force < /backups/mydb.graph   # overwrite
+# Export / import (Unix pipes — stdout/stdin)
+kazoo --db mydb db export > /backups/mydb.graph
+kazoo --db imported db import < /backups/mydb.graph
+kazoo --db imported db import --force < /backups/mydb.graph   # overwrite
 
 # Rename / delete
 kazoo db rename old new
-kazoo db rm restored --yes
+kazoo db rm imported --yes
 
 # Bulk-load (CSV / Parquet / JSON auto-detected from extension)
 kazoo data load Person people.csv
@@ -111,6 +111,11 @@ Databases live under `$XDG_DATA_HOME/kazoo/` (defaults to `~/.local/share/kazoo/
 
 - Default DB: `$XDG_DATA_HOME/kazoo/default.graph`
 - Named DBs: `$XDG_DATA_HOME/kazoo/<name>.graph`
+
+`--db` accepts either a bare name (resolved under the XDG dir) or a path to a
+`.graph` file (anything containing `/` or ending in `.graph` is taken as-is).
+So `kazoo --db ./examples/office/office.graph schema show` works without
+importing first.
 
 Select with `--db <name>` or `$KAZOO_DB`.
 

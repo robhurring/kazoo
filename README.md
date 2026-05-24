@@ -1,6 +1,14 @@
 # kazoo
 
-A CLI for [Kuzu](https://kuzudb.github.io/docs) graph databases. Query, manage schema, and inspect — all with JSON output.
+```
+    __                            ●━━●━━●
+   / /______ _____  ____  ____    ╲ ╲ ╱
+  / //_/ __ `/_  / / __ \/ __ \    ●━●
+ / ,< / /_/ / / /_/ /_/ / /_/ /    ╱ ╱ ╲
+/_/|_|\__,_/ /___/\____/\____/    ●━━●━━●
+```
+
+A JSON-first CLI for [Kuzu](https://kuzudb.github.io/docs) graph databases. Query, manage schema, snapshot, and inspect — all with JSON output.
 
 ## Install
 

@@ -62,8 +62,10 @@ kazoo --db office query \
           b.name AS person_b, tb.name AS team_b
    ORDER BY project;'
 
-# Dump the roster as CSV
-kazoo --db office data dump Person -f csv > roster.csv
+# Dump the roster as CSV (write the Cypher you want, pipe through `query -f csv`)
+kazoo --db office query \
+  'MATCH (p:Person) RETURN p.id AS id, p.name AS name, p.title AS title;' \
+  -f csv > roster.csv
 ```
 
 ---

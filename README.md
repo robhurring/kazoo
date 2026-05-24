@@ -89,9 +89,9 @@ kazoo db rm imported --yes
 # Bulk-load (CSV / Parquet / JSON auto-detected from extension)
 kazoo data load Person people.csv
 
-# Dump a table or query to stdout — pipe to a file
-kazoo data dump Person -f csv > people.csv
-kazoo data dump '(MATCH (p:Person) WHERE p.age > 30 RETURN p.name)' -f csv > over30.csv
+# Export query results — write your Cypher and pipe to a file
+kazoo query 'MATCH (p:Person) RETURN p.name AS name, p.age AS age;' -f csv > people.csv
+kazoo query 'MATCH (p:Person) WHERE p.age > 30 RETURN p.name AS name;' -f csv > over30.csv
 
 # Truncate a table
 kazoo data clear Person --yes

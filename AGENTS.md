@@ -71,9 +71,9 @@ kazoo --db agent db stats                 # row counts per table
 kazoo --db agent info                     # version + path + size + schema + stats
 
 # Bulk data
-kazoo --db agent data load Person people.csv          # COPY FROM
-kazoo --db agent data dump Person -f csv > out.csv    # COPY TO stdout
-kazoo --db agent data clear Person --yes              # truncate
+kazoo --db agent data load Person people.csv                                       # COPY FROM
+kazoo --db agent query 'MATCH (n:Person) RETURN n.id, n.name;' -f csv > out.csv    # export query results
+kazoo --db agent data clear Person --yes                                           # truncate
 
 # Move data around
 kazoo --db agent db export > snapshot.graph
@@ -129,8 +129,8 @@ But the CLI/JSON contract is the stable surface — internal modules may change.
 
 - Kuzu node tables **require** a primary key. `schema create-node` enforces `--pk`.
 - `data load` accepts CSV, Parquet, and JSON (the last requires Kuzu's `json` extension, which kazoo loads automatically when it sees a `.json`/`.ndjson`/`.jsonl` path).
-- `schema apply` splits on `;` honoring strings (`'`, `"`, `` ` ``) and comments (`//`, `/* */`). Default is atomic — wraps in a transaction so partial failures roll back.
-- `query -f csv` aliases properties from the schema for clean column names. For arbitrary projections, pass a parenthesized query to `data dump`.
+- `schema apply` reads DDL from stdin and splits on `;` honoring strings (`'`, `"`, `` ` ``) and comments (`//`, `/* */`). Default is atomic — wraps in a transaction so partial failures roll back.
+- For per-query CSV/TSV/NDJSON exports, write the Cypher you want and pipe `query -f <format>` to a file. `data dump` was removed because it overlapped with `query`. Whole-DB snapshots use `db export` / `db import`.
 
 ## Filing issues / contributing
 

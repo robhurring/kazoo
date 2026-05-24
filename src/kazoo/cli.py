@@ -18,7 +18,7 @@ app = typer.Typer(
 )
 schema_app = typer.Typer(help="Inspect and manage the schema.", no_args_is_help=True)
 db_app = typer.Typer(help="Manage databases under the XDG data dir.", no_args_is_help=True)
-data_app = typer.Typer(help="Bulk-load and dump table data.", no_args_is_help=True)
+data_app = typer.Typer(help="Bulk-load and truncate tables.", no_args_is_help=True)
 app.add_typer(schema_app, name="schema")
 app.add_typer(db_app, name="db")
 app.add_typer(data_app, name="data")
@@ -413,26 +413,6 @@ def data_clear(
         _bail("aborted", code=1)
     with _handle_errors():
         emit(data.clear(db_name=state.db_name, table=table), pretty=state.pretty)
-
-
-@data_app.command("dump")
-def data_dump(
-    source: Annotated[
-        str,
-        typer.Argument(
-            help="Table name, or a parenthesized query like '(MATCH (n:Person) RETURN n.*)'.",
-        ),
-    ],
-    fmt: Annotated[
-        str,
-        typer.Option("--format", "-f", help=f"Output format: {', '.join(VALID_FORMATS)}. Default: json."),
-    ] = "json",
-) -> None:
-    """Dump a table or query result to stdout. Pipe to a file."""
-    if fmt not in VALID_FORMATS:
-        _bail(f"unknown format: {fmt!r} (choose from {', '.join(VALID_FORMATS)})", code=2)
-    with _handle_errors():
-        data.dump(db_name=state.db_name, source=source, fmt=fmt)
 
 
 if __name__ == "__main__":

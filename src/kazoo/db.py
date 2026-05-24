@@ -26,8 +26,9 @@ def _looks_like_path(value: str) -> bool:
 
 
 def _resolve_name(name: str | None) -> str:
+    """Validate a bare DB name. Callers pre-filter path-style values."""
     resolved = name or os.environ.get("KAZOO_DB") or DEFAULT_DB_NAME
-    if "/" in resolved or resolved in {"", ".", ".."}:
+    if resolved in {"", ".", ".."}:
         raise ValueError(f"invalid db name: {resolved!r}")
     return resolved
 

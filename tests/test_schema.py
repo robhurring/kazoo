@@ -74,59 +74,61 @@ def test_invalid_prop_spec(run):
 # -- apply / export -----------------------------------------------------------
 
 
-def test_schema_apply_from_file(run, tmp_path):
+def test_schema_apply_from_stdin(run):
     run("db init")
-    schema_file = tmp_path / "schema.cypher"
-    schema_file.write_text(
+    ddl = (
         "CREATE NODE TABLE A (id INT64, PRIMARY KEY (id));\n"
         "CREATE NODE TABLE B (id INT64, PRIMARY KEY (id));\n"
         "CREATE REL TABLE R (FROM A TO B);\n"
     )
-    _, data = run(f"schema apply {schema_file}")
+    _, data = run("schema apply", input=ddl)
     assert data["applied"] == 3
     _, snap = run("schema show")
     assert {n["name"] for n in snap["nodes"]} == {"A", "B"}
     assert [r["name"] for r in snap["rels"]] == ["R"]
 
 
-def test_schema_apply_atomic_rolls_back(run, tmp_path):
+def test_schema_apply_atomic_rolls_back(run):
     """A failing statement in --atomic mode must leave the schema untouched."""
     run("db init")
-    bad = tmp_path / "bad.cypher"
-    bad.write_text(
+    bad = (
         "CREATE NODE TABLE A (id INT64, PRIMARY KEY (id));\n"
         "CREATE NODE TABLE A (id INT64, PRIMARY KEY (id));\n"  # duplicate
     )
-    result, _ = run(f"schema apply {bad}", expect_ok=False)
+    result, _ = run("schema apply", input=bad, expect_ok=False)
     assert result.exit_code != 0
     _, snap = run("schema show")
     assert snap["nodes"] == []
 
 
-def test_schema_apply_no_atomic_keeps_partial(run, tmp_path):
+def test_schema_apply_no_atomic_keeps_partial(run):
     run("db init")
-    mixed = tmp_path / "mixed.cypher"
-    mixed.write_text(
+    mixed = (
         "CREATE NODE TABLE A (id INT64, PRIMARY KEY (id));\n"
         "CREATE NODE TABLE A (id INT64, PRIMARY KEY (id));\n"
     )
-    result, _ = run(f"schema apply {mixed} --no-atomic", expect_ok=False)
+    result, _ = run("schema apply --no-atomic", input=mixed, expect_ok=False)
     assert result.exit_code != 0
     _, snap = run("schema show")
     assert [n["name"] for n in snap["nodes"]] == ["A"]
 
 
-def test_apply_file_with_semicolon_in_string(run, tmp_path):
+def test_apply_with_semicolon_in_string(run):
     run("db init")
-    f = tmp_path / "data.cypher"
-    f.write_text(
+    ddl = (
         "CREATE NODE TABLE Note (id INT64, body STRING, PRIMARY KEY (id));\n"
         "CREATE (:Note {id: 1, body: 'hello; world'});\n"
     )
-    _, data = run(f"schema apply {f}")
+    _, data = run("schema apply", input=ddl)
     assert data["applied"] == 2
     _, rows = run("query 'MATCH (n:Note) RETURN n.body AS b;'")
     assert rows == [{"b": "hello; world"}]
+
+
+def test_schema_apply_empty_stdin(run):
+    run("db init")
+    result, _ = run("schema apply", input="", expect_ok=False)
+    assert result.exit_code != 0
 
 
 def test_schema_export_round_trips(run):

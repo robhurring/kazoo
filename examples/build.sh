@@ -26,8 +26,8 @@ rebuild_one() {
   echo "==> rebuilding '$name'"
   kazoo --db "$name" db rm --yes >/dev/null 2>&1 || true
   kazoo --db "$name" db init >/dev/null
-  kazoo --db "$name" schema apply "$name/schema.cypher"
-  kazoo --db "$name" schema apply "$name/seed.cypher" --no-atomic
+  kazoo --db "$name" schema apply < "$name/schema.cypher"
+  kazoo --db "$name" schema apply --no-atomic < "$name/seed.cypher"
   kazoo --db "$name" db stats
   kazoo --db "$name" db export | gzip -9 > "$name/$name.graph.gz"
 }

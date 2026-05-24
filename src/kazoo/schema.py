@@ -172,16 +172,15 @@ def split_statements(text: str) -> list[str]:
     return statements
 
 
-def apply_file(*, db_name: str | None, path: Path, atomic: bool = True) -> dict[str, Any]:
-    """Apply a semicolon-separated DDL file.
+def apply_text(*, db_name: str | None, text: str, atomic: bool = True) -> dict[str, Any]:
+    """Apply a semicolon-separated stream of DDL statements.
 
     When `atomic`, wraps execution in a transaction so partial failures roll back.
     """
     conn = open_db(db_name)
-    text = path.read_text()
     statements = split_statements(text)
     if not statements:
-        return {"applied": 0, "file": str(path)}
+        return {"applied": 0, "atomic": atomic}
     if atomic:
         conn.execute("BEGIN TRANSACTION;")
         try:
@@ -197,7 +196,7 @@ def apply_file(*, db_name: str | None, path: Path, atomic: bool = True) -> dict[
     else:
         for stmt in statements:
             conn.execute(stmt + ";")
-    return {"applied": len(statements), "file": str(path), "atomic": atomic}
+    return {"applied": len(statements), "atomic": atomic}
 
 
 def export(*, db_name: str | None) -> str:

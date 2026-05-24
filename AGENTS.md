@@ -49,8 +49,8 @@ otherwise it must be a plain identifier (no slashes, no `..`, no empty string).
 ```bash
 # Create a DB and apply schema/data scripts
 kazoo --db agent db init
-kazoo --db agent schema apply schema.cypher
-kazoo --db agent schema apply seed.cypher --no-atomic
+kazoo --db agent schema apply           < schema.cypher
+kazoo --db agent schema apply --no-atomic < seed.cypher
 
 # Query inline / from stdin / with parameters
 kazoo --db agent query 'MATCH (n:Entity) RETURN count(n) AS n;'

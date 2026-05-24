@@ -189,7 +189,6 @@ def schema_describe(
 
 @schema_app.command("apply")
 def schema_apply(
-    path: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="DDL file.")],
     atomic: Annotated[
         bool,
         typer.Option(
@@ -198,9 +197,17 @@ def schema_apply(
         ),
     ] = True,
 ) -> None:
-    """Apply Cypher DDL statements from a file (semicolon-separated)."""
+    """Apply Cypher DDL statements from stdin (semicolon-separated).
+
+    Example: `kazoo --db agent schema apply < schema.cypher`
+    """
+    if sys.stdin.isatty():
+        _bail("no input on stdin (pipe DDL: `kazoo schema apply < schema.cypher`)", code=2)
+    text = sys.stdin.read()
+    if not text.strip():
+        _bail("empty input on stdin", code=2)
     with _handle_errors():
-        emit(schema.apply_file(db_name=state.db_name, path=path, atomic=atomic), pretty=state.pretty)
+        emit(schema.apply_text(db_name=state.db_name, text=text, atomic=atomic), pretty=state.pretty)
 
 
 @schema_app.command("export")

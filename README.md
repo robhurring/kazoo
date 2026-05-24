@@ -48,9 +48,9 @@ kazoo schema show
 kazoo query "MATCH (p:Person) RETURN p" --explain
 kazoo query "MATCH (p:Person) RETURN p" --profile
 
-# Apply DDL from a file (atomic by default — rolls back on partial failure)
-kazoo schema apply schema.cypher
-kazoo schema apply schema.cypher --no-atomic   # apply best-effort, keep partial
+# Apply DDL from stdin (atomic by default — rolls back on partial failure)
+kazoo schema apply              < schema.cypher
+kazoo schema apply --no-atomic  < schema.cypher   # apply best-effort, keep partial
 
 # Export the schema as Cypher DDL
 kazoo schema export

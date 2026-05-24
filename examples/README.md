@@ -80,7 +80,7 @@ kazoo --db social query \
 kazoo --db social query \
   'MATCH (a:User)-[:FOLLOWS]->(b:User)-[:FOLLOWS]->(a)
    WHERE a.id < b.id
-   RETURN a.handle AS a, b.handle AS b ORDER BY a;'
+   RETURN a.handle AS a, b.handle AS b ORDER BY a.handle;'
 
 # Friend-of-friend suggestions for @grace (people she doesn't already follow)
 kazoo --db social query \

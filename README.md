@@ -122,3 +122,18 @@ Select with `--db <name>` or `$KAZOO_DB`.
 ## Output
 
 All commands emit JSON to stdout. Use `--pretty` for indented output.
+
+## Examples
+
+Two ready-to-query graphs ship in [`examples/`](examples/) — an office org chart and a social network. Import either snapshot in one line:
+
+```bash
+kazoo --db office db import < examples/office/office.grz
+kazoo --db social db import < examples/social/social.grz
+```
+
+Sample queries and a `build.sh` helper live in [`examples/README.md`](examples/README.md).
+
+## For agents
+
+Building something that drives kazoo programmatically? [`AGENTS.md`](AGENTS.md) documents the JSON-on-stdout contract, exit codes, error shapes, and conventions for using kazoo as a graph backing store.

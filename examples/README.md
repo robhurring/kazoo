@@ -21,7 +21,7 @@ Each DB lands at `$XDG_DATA_HOME/kazoo/<name>.graph`
 If you edit `schema.cypher` or `seed.cypher`, refresh the `.grz`:
 
 ```bash
-kazoo --db office db rm --yes
+kazoo db rm office --yes
 kazoo --db office db init
 kazoo --db office schema apply              < examples/office/schema.cypher
 kazoo --db office schema apply --no-atomic  < examples/office/seed.cypher
@@ -101,6 +101,6 @@ kazoo --db social query \
 ## Cleanup
 
 ```bash
-kazoo --db office db rm --yes
-kazoo --db social db rm --yes
+kazoo db rm office --yes
+kazoo db rm social --yes
 ```

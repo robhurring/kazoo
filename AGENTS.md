@@ -4,7 +4,7 @@ This document is a runbook for **AI agents and tooling** that drive `kazoo` prog
 
 ## What kazoo is
 
-A small Python CLI wrapping [Kuzu](https://kuzudb.com/) — an embedded graph database that speaks Cypher. Databases are single files under `$XDG_DATA_HOME/kazoo/<name>.graph` (default `~/.local/share/kazoo/<name>.graph`).
+A small Python CLI wrapping [Kuzu](https://kuzudb.github.io/docs) — an embedded graph database that speaks Cypher. Databases are single files under `$XDG_DATA_HOME/kazoo/<name>.graph` (default `~/.local/share/kazoo/<name>.graph`).
 
 If you're building an agent that needs a graph backing store — entity/relationship memory, knowledge graphs, plan-and-execute state, social graphs, dependency graphs — kazoo gives you a Cypher REPL and a scriptable CLI without standing up a server.
 

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
 
 APP_NAME = "kazoo"
 DEFAULT_DB_NAME = "default"
-DB_SUFFIX = ".graph"
+DB_SUFFIX = ".kuzu"
 
 
 def data_root() -> Path:
@@ -21,7 +20,7 @@ def data_root() -> Path:
 
 
 def _looks_like_path(value: str) -> bool:
-    """A `--db` value that looks like a path to a .graph file rather than a bare name."""
+    """A `--db` value that looks like a path to a .kuzu file rather than a bare name."""
     return ("/" in value) or value.endswith(DB_SUFFIX)
 
 
@@ -36,7 +35,7 @@ def _resolve_name(name: str | None) -> str:
 def db_path(name: str | None = None) -> Path:
     """Resolve filesystem path for a DB.
 
-    If `name` looks like a path (contains '/', ends in .graph, or starts with
+    If `name` looks like a path (contains '/', ends in .kuzu, or starts with
     '~' or '.'), it's used as a file path directly. Otherwise it's resolved
     as a bare name under the XDG data dir.
     """
@@ -83,92 +82,26 @@ def remove_db(name: str | None = None) -> Path:
     return path
 
 
+EXPLORER_IMAGE = "kuzudb/explorer:latest"
 
 
-def rename_db(old: str, new: str) -> tuple[Path, Path]:
-    src = db_path(old)
-    dest = db_path(new)
-    if not src.exists():
-        raise FileNotFoundError(f"database does not exist: {src}")
-    if dest.exists():
-        raise FileExistsError(f"target database already exists: {dest}")
-    src.rename(dest)
-    return src, dest
+def explorer_command(
+    name: str | None = None, *, port: int = 8000, image: str = EXPLORER_IMAGE
+) -> list[str]:
+    """Build the `docker run` argv that serves the named DB in Kuzu Explorer.
 
-
-_GZIP_MAGIC = b"\x1f\x8b"
-
-
-class _PrefixedStream:
-    """Read-only stream that yields `prefix` first, then delegates to `inner`."""
-
-    def __init__(self, prefix: bytes, inner):
-        self._prefix = prefix
-        self._inner = inner
-
-    def read(self, n: int = -1) -> bytes:
-        if self._prefix:
-            if n < 0 or n >= len(self._prefix):
-                head = self._prefix
-                self._prefix = b""
-                tail = self._inner.read(-1 if n < 0 else n - len(head))
-                return head + (tail or b"")
-            out = self._prefix[:n]
-            self._prefix = self._prefix[n:]
-            return out
-        return self._inner.read(n)
-
-
-def _maybe_gunzip(stream):
-    """If `stream` starts with gzip magic bytes, transparently decompress."""
-    head = stream.read(2)
-    if not head:
-        return stream
-    rejoined = _PrefixedStream(head, stream)
-    if head == _GZIP_MAGIC:
-        import gzip
-        return gzip.GzipFile(fileobj=rejoined)
-    return rejoined
-
-
-def export_to_stream_gzipped(name: str | None, stream) -> Path:
-    """Stream the DB file's bytes through gzip into the given binary stream."""
-    import gzip
-
-    src = db_path(name)
-    if not src.exists():
-        raise FileNotFoundError(f"database does not exist: {src}")
-    with src.open("rb") as f, gzip.GzipFile(fileobj=stream, mode="wb", compresslevel=6) as gz:
-        shutil.copyfileobj(f, gz)
-    return src
-
-
-def import_from_stream(name: str | None, stream) -> Path:
-    """Replace the named DB with bytes from a binary stream.
-
-    Auto-detects gzipped input via magic bytes. Always replaces — the .grz
-    file is the source of truth. Refuses zero-byte input so we never produce
-    an empty/corrupt DB.
+    Kuzu Explorer mounts the directory holding the database at /database and
+    selects the file via $KUZU_FILE, so we mount the resolved parent and pass
+    the bare filename. The host `port` maps to the container's 8000.
     """
-    dest = db_path(name)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".part")
-    if tmp.exists():
-        tmp.unlink()
-    bytes_written = 0
-    source = _maybe_gunzip(stream)
-    try:
-        with tmp.open("wb") as f:
-            while True:
-                chunk = source.read(1 << 16)
-                if not chunk:
-                    break
-                f.write(chunk)
-                bytes_written += len(chunk)
-        if bytes_written == 0:
-            raise ValueError("no bytes on stdin — refusing to create an empty DB")
-        tmp.replace(dest)  # atomic on POSIX
-    finally:
-        if tmp.exists():
-            tmp.unlink()
-    return dest
+    path = db_path(name)
+    if not path.exists():
+        raise FileNotFoundError(f"database does not exist: {path}")
+    parent = str(path.parent.resolve())
+    return [
+        "docker", "run", "--rm",
+        "-p", f"{port}:8000",
+        "-v", f"{parent}:/database",
+        "-e", f"KUZU_FILE={path.name}",
+        image,
+    ]

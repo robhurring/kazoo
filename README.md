@@ -42,6 +42,10 @@ kazoo query 'MATCH (p:Person) RETURN p.name, p.age' -f tsv > people.tsv
 # Interactive REPL
 kazoo repl
 
+# Visual exploration in the browser (Kuzu Explorer via Docker; requires Docker)
+kazoo --db mydb explore            # prompts to open http://localhost:8000
+kazoo --db mydb explore --port 9000 --no-open
+
 # Parameter binding
 kazoo query 'MATCH (p:Person {name: $who}) RETURN p' --param who=Alice
 kazoo query 'MATCH (p:Person) WHERE p.age IN $ages RETURN p' --param ages='[30,40]'
@@ -78,13 +82,13 @@ kazoo schema drop-column Person score
 # Drop a table
 kazoo schema drop Person --if-exists
 
-# Snapshot / restore
-kazoo --db mydb db export > last-backup.grz
-kazoo --db imported db import < last-backup.grz
+# Back up / restore — a DB is a single file (find it with `kazoo info`)
+gzip   < ~/.local/share/kazoo/mydb.kuzu > last-backup.kuzu.gz
+gunzip < last-backup.kuzu.gz > ~/.local/share/kazoo/mydb.kuzu
 
 # Rename / delete
-kazoo db rename old new
-kazoo db rm imported --yes
+mv ~/.local/share/kazoo/old.kuzu ~/.local/share/kazoo/new.kuzu   # rename
+kazoo db rm imported --yes                                        # delete (guarded)
 
 # Bulk-load
 kazoo data load Person people.csv
@@ -105,10 +109,10 @@ kazoo completions fish > ~/.config/fish/completions/kazoo.fish
 
 Databases live under `$XDG_DATA_HOME/kazoo/` (defaults to `~/.local/share/kazoo/` on every OS, including macOS).
 
-- Default DB: `$XDG_DATA_HOME/kazoo/default.graph` — auto-created on first use, no setup needed.
-- Named DBs: `$XDG_DATA_HOME/kazoo/<name>.graph` — must be initialized explicitly (`kazoo --db <name> db init`).
+- Default DB: `$XDG_DATA_HOME/kazoo/default.kuzu` — auto-created on first use, no setup needed.
+- Named DBs: `$XDG_DATA_HOME/kazoo/<name>.kuzu` — must be initialized explicitly (`kazoo --db <name> db init`).
 
-`--db` accepts either a bare name (resolved under the XDG dir) or a path to a `.graph` file (anything containing `/` or ending in `.graph` is taken as-is). `$KAZOO_DB` selects the same way.
+`--db` accepts either a bare name (resolved under the XDG dir) or a path to a `.kuzu` file (anything containing `/` or ending in `.kuzu` is taken as-is). `$KAZOO_DB` selects the same way.
 
 Pointing at a missing named DB errors instead of silently creating one — that's only the default's behavior.
 
@@ -116,10 +120,9 @@ Pointing at a missing named DB errors instead of silently creating one — that'
 
 | Extension | What it is |
 |-----------|------------|
-| `.graph`  | A live Kuzu database — schema, nodes, rels, indexes, everything. This is what `--db` reads. |
-| `.grz`    | A gzipped snapshot of a `.graph` produced by `db export`. Pipe one back into `db import` to recreate the DB elsewhere. |
+| `.kuzu`   | A live Kuzu database — schema, nodes, rels, indexes, everything. This is what `--db` reads. |
 
-Select with `--db <name>` or `$KAZOO_DB`.
+Select with `--db <name>` or `$KAZOO_DB`. A `.kuzu` file is self-contained: back it up with `cp`/`gzip`, move it with `mv`.
 
 ## Output
 
@@ -127,14 +130,14 @@ All commands emit JSON to stdout. Use `--pretty` for indented output.
 
 ## Examples
 
-Two ready-to-query graphs ship in [`examples/`](examples/) — an office org chart and a social network. Import either snapshot in one line:
+Two ready-to-query graphs ship in [`examples/`](examples/) — an office org chart and a social network. Point `--db` straight at the committed database file:
 
 ```bash
-kazoo --db office db import < examples/office/office.grz
-kazoo --db social db import < examples/social/social.grz
+kazoo --db ./examples/office/office.kuzu query 'MATCH (p:Person) RETURN p.name;'
+kazoo --db ./examples/social/social.kuzu query 'MATCH (u:User) RETURN u.handle;'
 ```
 
-Sample queries and a `build.sh` helper live in [`examples/README.md`](examples/README.md).
+More sample queries live in [`examples/README.md`](examples/README.md).
 
 ## For agents
 

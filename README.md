@@ -12,7 +12,9 @@
 ●       ●
 ```
 
-A CLI for [Kuzu](https://kuzudb.github.io/docs) graph databases. Query, manage schema, explore, and inspect — all output is JSON.
+A CLI for [Kuzu](https://kuzudb.github.io/docs) graph databases. Query, manage, explore, and inspect.
+
+A composable shell wrapper around Kuzu, so the AI tools on your machine can build and query graphs without an SDK or a server.
 
 ## Install
 

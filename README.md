@@ -6,7 +6,7 @@
 ●     ●
 │    ╱           k a z o o
 ●───●        ────────────────────────
-│    ╲           a CLI for Kuzu graph DBs
+│    ╲       a CLI for Kuzu graph DBs
 ●     ●
 │      ╲
 ●       ●

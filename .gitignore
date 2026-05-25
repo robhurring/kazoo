@@ -11,5 +11,6 @@ build/
 *.kz
 *.kuzu
 *.wal
+explorer.db
 !examples/**/*.kuzu
 .claude/ralph-loop.local.md

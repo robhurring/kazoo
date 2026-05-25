@@ -16,6 +16,15 @@ you want to experiment. Inspect the schema any time with `schema export`:
 kazoo --db ./examples/office/office.kuzu schema export
 ```
 
+### Explore in the browser (requires Docker)
+
+Open a graph in [Kuzu Explorer](https://kuzudb.github.io/docs/visualization/kuzu-explorer/):
+
+```bash
+kazoo --db ./examples/office/office.kuzu explore
+kazoo --db ./examples/social/social.kuzu explore --port 9000
+```
+
 ---
 
 ## Office graph

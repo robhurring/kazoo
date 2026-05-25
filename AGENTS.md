@@ -4,7 +4,7 @@ This document is a runbook for **AI agents and tooling** that drive `kazoo` prog
 
 ## What kazoo is
 
-A small Python CLI wrapping [Kuzu](https://kuzudb.github.io/docs) — an embedded graph database that speaks Cypher. Databases are single files under `$XDG_DATA_HOME/kazoo/<name>.graph` (default `~/.local/share/kazoo/<name>.graph`).
+A small Python CLI wrapping [Kuzu](https://kuzudb.github.io/docs) — an embedded graph database that speaks Cypher. Databases are single files under `$XDG_DATA_HOME/kazoo/<name>.kuzu` (default `~/.local/share/kazoo/<name>.kuzu`).
 
 If you're building an agent that needs a graph backing store — entity/relationship memory, knowledge graphs, plan-and-execute state, social graphs, dependency graphs — kazoo gives you a Cypher REPL and a scriptable CLI without standing up a server.
 
@@ -22,8 +22,6 @@ uv tool install --reinstall /path/to/repo  # from a checkout
 - **Success:** JSON on stdout. `--pretty` to indent.
 - **Failure:** non-zero exit, `{"error": "<message>"}` on stdout.
 - **`query -f <format>`:** `json` (default), `ndjson` (one row per line — pipe-friendly), `csv`, `tsv`.
-- **`db export`:** gzipped `.grz` snapshot on stdout (no JSON). Brief note on stderr.
-- **`db import`:** `.grz` (or raw `.graph`) on stdin, **always replaces** the target. Brief note on stderr.
 - **REPL** (`kazoo repl`): meta-commands (`\schema`, `\stats`, `\d <table>`, `\use <db>`, `\quit`) emit JSON; SQL/Cypher emits result rows.
 
 ### Exit codes
@@ -37,11 +35,11 @@ uv tool install --reinstall /path/to/repo  # from a checkout
 | Method | How |
 |---|---|
 | `--db <name>` flag | `kazoo --db ledger query "..."` |
-| `--db <path>` flag | `kazoo --db ./snapshots/ledger.graph query "..."` |
+| `--db <path>` flag | `kazoo --db ./snapshots/ledger.kuzu query "..."` |
 | `KAZOO_DB` env | `KAZOO_DB=ledger kazoo query "..."` |
 | Default | falls back to `default` |
 
-If `--db` contains `/` or ends with `.graph` it's treated as a file path;
+If `--db` contains `/` or ends with `.kuzu` it's treated as a file path;
 otherwise it must be a plain identifier (no slashes, no `..`, no empty string).
 
 ## Cheat sheet
@@ -74,12 +72,12 @@ kazoo --db agent data load Person people.csv                                    
 kazoo --db agent query 'MATCH (n:Person) RETURN n.id, n.name;' -f csv > out.csv    # export query results
 kazoo --db agent data clear Person --yes                                           # truncate
 
-# Snapshot a whole DB (schema+data, gzipped) and restore it
-kazoo --db agent db export > snapshot.grz
-kazoo --db replica db import < snapshot.grz        # always replaces — .grz is the source of truth
+# Back up / restore a whole DB — it's a single file (path from `kazoo info`)
+gzip   < ~/.local/share/kazoo/agent.kuzu > snapshot.kuzu.gz
+gunzip < snapshot.kuzu.gz > ~/.local/share/kazoo/replica.kuzu
 
-# Query a live .graph file directly (no XDG import)
-kazoo --db ./snapshot.graph schema show
+# Query a .kuzu file anywhere on disk directly (no copy into the XDG dir)
+kazoo --db ./snapshot.kuzu schema show
 ```
 
 ## Conventions for building agents on kazoo
@@ -88,7 +86,7 @@ kazoo --db ./snapshot.graph schema show
 2. **Define your schema explicitly.** Kuzu is strict — nodes require a primary key. Use `schema apply` with a checked-in DDL file rather than ad-hoc `CREATE NODE TABLE` calls scattered through code.
 3. **Bind parameters, don't concatenate.** Use `--param name=value` to pass values into queries — values are parsed as JSON if possible, otherwise as strings.
 4. **Stream large results.** Use `-f ndjson` and pipe to `jq`/`awk`/your reader. Avoid materializing huge JSON arrays.
-5. **Snapshot via export.** `db export` produces a portable single-file snapshot; `db import` recreates it (and `--db <path>` lets you query a snapshot without importing). Useful for branching agent state, sharing, or rolling back.
+5. **Snapshot by copying the file.** A DB is one self-contained `.kuzu` file — `cp`/`gzip` it to branch, share, or roll back agent state, and point `--db <path>` straight at any copy (no import step). Find the path with `kazoo info`.
 6. **Treat `info` as your health check.** It returns kazoo + kuzu versions, the DB path, byte size, full schema, and per-table counts — everything an agent needs to verify state in one call.
 
 ## Errors agents should handle
@@ -100,12 +98,14 @@ kazoo --db ./snapshot.graph schema show
 
 ## Examples to learn from
 
-[`examples/`](examples/) contains two ready-to-build graphs:
+[`examples/`](examples/) contains two ready-to-query graphs:
 
 - **office** — people / teams / projects / reporting lines / project assignments.
 - **social** — users / posts / follows / likes / timestamps.
 
-Each has a `schema.cypher`, `seed.cypher`, and example queries in [`examples/README.md`](examples/README.md). Build with `./examples/build.sh`.
+Each ships as a committed `.kuzu` file you can query directly — e.g.
+`kazoo --db ./examples/office/office.kuzu query '...'`. Sample queries are in
+[`examples/README.md`](examples/README.md).
 
 ## Embedding kazoo
 
@@ -127,7 +127,7 @@ But the CLI/JSON contract is the stable surface — internal modules may change.
 - Kuzu node tables **require** a primary key. `schema create-node` enforces `--pk`.
 - `data load` accepts CSV, Parquet, and JSON (the last requires Kuzu's `json` extension, which kazoo loads automatically when it sees a `.json`/`.ndjson`/`.jsonl` path).
 - `schema apply` reads DDL from stdin and splits on `;` honoring strings (`'`, `"`, `` ` ``) and comments (`//`, `/* */`). Default is atomic — wraps in a transaction so partial failures roll back.
-- For per-query CSV/TSV/NDJSON exports, write the Cypher you want and pipe `query -f <format>` to a file. `data dump` was removed because it overlapped with `query`. Whole-DB snapshots use `db export` / `db import`.
+- For per-query CSV/TSV/NDJSON exports, write the Cypher you want and pipe `query -f <format>` to a file. `data dump` was removed because it overlapped with `query`. For whole-DB snapshots, copy the single `.kuzu` file (`cp`/`gzip`).
 
 ## Filing issues / contributing
 

@@ -9,5 +9,7 @@ __pycache__/
 dist/
 build/
 *.kz
-*.graph
+*.kuzu
+*.wal
+!examples/**/*.kuzu
 .claude/ralph-loop.local.md

@@ -110,6 +110,43 @@ def repl_cmd() -> None:
     repl.run(db_name=state.db_name, pretty=state.pretty)
 
 
+@app.command("explore")
+def explore_cmd(
+    port: Annotated[int, typer.Option("--port", help="Host port to expose Kuzu Explorer on.")] = 8000,
+    open_browser: Annotated[
+        bool | None,
+        typer.Option("--open/--no-open", help="Open a browser at the Explorer URL. Prompts if unset."),
+    ] = None,
+) -> None:
+    """Launch Kuzu Explorer (web UI) for the active DB via Docker.
+
+    Runs `kuzudb/explorer` in the foreground (Ctrl-C to stop) with the DB
+    mounted. Requires Docker.
+    """
+    import shutil as _shutil
+    import subprocess
+    import threading
+    import webbrowser
+
+    if _shutil.which("docker") is None:
+        _bail("docker not found — install Docker to use `kazoo explore`", code=1)
+    with _handle_errors():
+        cmd = db.explorer_command(state.db_name, port=port)
+
+    url = f"http://localhost:{port}"
+    if open_browser is None:
+        open_browser = sys.stdin.isatty() and typer.confirm(f"Open {url} in your browser?", default=True)
+    if open_browser:
+        # Explorer takes a moment to boot; open once it's likely listening.
+        threading.Timer(2.5, lambda: webbrowser.open(url)).start()
+
+    print(f"Starting Kuzu Explorer at {url} (Ctrl-C to stop)…", file=sys.stderr)
+    try:
+        subprocess.run(cmd, check=False)
+    except KeyboardInterrupt:
+        pass
+
+
 @app.command("info")
 def info_cmd() -> None:
     """Show a one-shot summary: db path, size, version, schema, stats."""
@@ -314,17 +351,6 @@ def db_init(
     emit({"initialized": path.stem, "path": str(path)}, pretty=state.pretty)
 
 
-@db_app.command("rename")
-def db_rename(
-    old: Annotated[str, typer.Argument(help="Current DB name.")],
-    new: Annotated[str, typer.Argument(help="New DB name.")],
-) -> None:
-    """Rename a database file."""
-    with _handle_errors():
-        src, dest = db.rename_db(old, new)
-    emit({"renamed": new, "from": str(src), "to": str(dest)}, pretty=state.pretty)
-
-
 @db_app.command("rm")
 def db_rm(
     name: Annotated[str, typer.Argument(help="DB name to delete.")],
@@ -339,33 +365,6 @@ def db_rm(
         _bail("aborted", code=1)
     db.remove_db(name)
     emit({"removed": name, "path": str(path)}, pretty=state.pretty)
-
-
-@db_app.command("export")
-def db_export() -> None:
-    """Export the active DB as a gzipped schema+data snapshot to stdout.
-
-    Example: `kazoo --db mydb db export > last-backup.grz`
-    """
-    with _handle_errors():
-        src = db.export_to_stream_gzipped(state.db_name, sys.stdout.buffer)
-    print(f"exported {src}", file=sys.stderr)
-
-
-@db_app.command("import")
-def db_import() -> None:
-    """Replace the active DB with a snapshot read from stdin.
-
-    Accepts either a raw `.graph` stream or a gzipped `.grz` stream; gzip is
-    auto-detected. Always replaces — the snapshot is the source of truth.
-
-    Example: `kazoo --db mydb db import < last-backup.grz`
-    """
-    if sys.stdin.isatty():
-        _bail("no input on stdin (pipe a .grz file: `kazoo --db NAME db import < file.grz`)", code=2)
-    with _handle_errors():
-        dest = db.import_from_stream(state.db_name, sys.stdin.buffer)
-    print(f"imported to {dest}", file=sys.stderr)
 
 
 @data_app.command("load")
